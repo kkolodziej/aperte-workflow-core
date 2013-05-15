@@ -6,10 +6,12 @@ import com.vaadin.ui.Button;
 import com.vaadin.ui.Component;
 
 import pl.net.bluesoft.rnd.processtool.ProcessToolContext;
+import pl.net.bluesoft.rnd.processtool.ProcessToolContextCallback;
 import pl.net.bluesoft.rnd.processtool.model.BpmTask;
+import pl.net.bluesoft.rnd.processtool.plugins.ProcessToolRegistry;
 
 import org.apache.commons.lang3.StringUtils;
-import org.aperteworkflow.util.vaadin.TaskAlreadyCompletedException; 
+import org.aperteworkflow.util.vaadin.TaskAlreadyCompletedException;
 import pl.net.bluesoft.rnd.processtool.ui.WidgetContextSupport;
 import pl.net.bluesoft.rnd.processtool.ui.widgets.ProcessToolVaadinRenderable;
 import pl.net.bluesoft.rnd.processtool.ui.widgets.impl.BaseProcessToolActionButton;
@@ -37,10 +39,21 @@ public abstract class BaseProcessToolVaadinActionButton extends BaseProcessToolA
 				                	  }
 				                  }, new Runnable() {
 				                	  @Override
-				                	  public void run() {
-				                		  WidgetContextSupport support = callback.getWidgetContextSupport();
-				                		  task = support.refreshTask(bpmSession, task);
-				                		  performAction(callback.getWidgetContextSupport());
+				                	  public void run() 
+				                	  {
+				                		  ProcessToolRegistry registry = ProcessToolRegistry.ThreadUtil.getThreadRegistry();
+				                		  
+				                		  registry.withProcessToolContext(new ProcessToolContextCallback() {
+											
+											@Override
+											public void withContext(ProcessToolContext ctx) 
+											{
+						                		  WidgetContextSupport support = callback.getWidgetContextSupport();
+						                		  task = support.refreshTask(bpmSession, task);
+						                		  performAction(callback.getWidgetContextSupport());
+											}
+										});
+
 				                	  }
 				                  }
 						);
@@ -63,7 +76,7 @@ public abstract class BaseProcessToolVaadinActionButton extends BaseProcessToolA
 			showTransitionNotification();
 		}
 		if (task == null) {
-			throw new TaskAlreadyCompletedException(); 
+			throw new TaskAlreadyCompletedException();
 		}
 		callback.getWidgetContextSupport().updateTask(task);
 	}
@@ -92,7 +105,7 @@ public abstract class BaseProcessToolVaadinActionButton extends BaseProcessToolA
 
 	@Override
 	public void saveData(BpmTask task) {
-		task.getProcessInstance().getRootProcessInstance().setSimpleAttribute("markedImportant", String.valueOf(markProcessImportant));
+		task.getProcessInstance().getRootProcessInstance().setSimpleAttribute("markedImportant", markProcessImportant);
 		// override
 	}
 

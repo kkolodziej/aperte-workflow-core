@@ -1,29 +1,41 @@
 package pl.net.bluesoft.rnd.processtool.dao.impl;
 
+import java.lang.reflect.InvocationTargetException;
+import java.util.Collection;
+import java.util.Date;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Map.Entry;
+import java.util.Set;
+import java.util.logging.Logger;
+
 import org.apache.commons.beanutils.PropertyUtils;
 import org.apache.commons.collections.CollectionUtils;
 import org.apache.commons.collections.functors.UniquePredicate;
 import org.hibernate.Criteria;
+import org.hibernate.FetchMode;
 import org.hibernate.Session;
 import org.hibernate.criterion.Order;
 import org.hibernate.criterion.Restrictions;
+
 import pl.net.bluesoft.rnd.processtool.dao.ProcessDictionaryDAO;
 import pl.net.bluesoft.rnd.processtool.dict.GlobalDictionaryProvider;
 import pl.net.bluesoft.rnd.processtool.dict.ProcessDictionaryProvider;
 import pl.net.bluesoft.rnd.processtool.hibernate.SimpleHibernateBean;
 import pl.net.bluesoft.rnd.processtool.model.config.ProcessDefinitionConfig;
-import pl.net.bluesoft.rnd.processtool.model.dict.db.*;
+import pl.net.bluesoft.rnd.processtool.model.dict.db.ProcessDBDictionary;
+import pl.net.bluesoft.rnd.processtool.model.dict.db.ProcessDBDictionaryItem;
+import pl.net.bluesoft.rnd.processtool.model.dict.db.ProcessDBDictionaryItemExtension;
+import pl.net.bluesoft.rnd.processtool.model.dict.db.ProcessDBDictionaryItemValue;
+import pl.net.bluesoft.rnd.processtool.model.dict.db.ProcessDBDictionaryPermission;
 import pl.net.bluesoft.util.cache.Caches;
 import pl.net.bluesoft.util.lang.ExpiringCache;
 
-import java.lang.reflect.InvocationTargetException;
-import java.util.*;
-import java.util.Map.Entry;
-import java.util.logging.Logger;
-
 public class ProcessDictionaryDAOImpl extends SimpleHibernateBean<ProcessDBDictionary> implements ProcessDictionaryDAO,
         ProcessDictionaryProvider<ProcessDBDictionary>, GlobalDictionaryProvider<ProcessDBDictionary> {
-    public ProcessDictionaryDAOImpl(Session session) {
+    public ProcessDictionaryDAOImpl(Session session) { 
         super(session);
     }
 
@@ -117,6 +129,7 @@ public class ProcessDictionaryDAOImpl extends SimpleHibernateBean<ProcessDBDicti
                 Criteria criteria = getSession().createCriteria(ProcessDBDictionary.class)
                         .add(Restrictions.eq("dictionaryId", dictionaryId))
                         .add(Restrictions.eq("languageCode", languageCode))
+                        .setResultTransformer(Criteria.DISTINCT_ROOT_ENTITY)
                         .add(definition == null ? Restrictions.isNull("processDefinition") : Restrictions.eq("processDefinition", definition));
                 return (ProcessDBDictionary) criteria.uniqueResult();
             }
@@ -133,6 +146,7 @@ public class ProcessDictionaryDAOImpl extends SimpleHibernateBean<ProcessDBDicti
 				Criteria criteria = getSession().createCriteria(ProcessDBDictionary.class)
 						.add(Restrictions.eq("dictionaryId", dictionaryId))
 						.add(Restrictions.eq("defaultDictionary", Boolean.TRUE))
+						.setResultTransformer(Criteria.DISTINCT_ROOT_ENTITY)
 						.add(definition == null ? Restrictions.isNull("processDefinition") : Restrictions.eq("processDefinition", definition));
 				return (ProcessDBDictionary)criteria.uniqueResult();
 			}
@@ -143,6 +157,7 @@ public class ProcessDictionaryDAOImpl extends SimpleHibernateBean<ProcessDBDicti
     public List<ProcessDBDictionary> fetchProcessDictionaries(ProcessDefinitionConfig definition) {
         Criteria criteria = getSession().createCriteria(ProcessDBDictionary.class)
                 .add(definition == null ? Restrictions.isNull("processDefinition") : Restrictions.eq("processDefinition", definition))
+                .setResultTransformer(Criteria.DISTINCT_ROOT_ENTITY)
                 .addOrder(Order.desc("dictionaryName"));
         List<ProcessDBDictionary> dictionaries = criteria.list();
         updateCache(dictionaries);
@@ -165,6 +180,7 @@ public class ProcessDictionaryDAOImpl extends SimpleHibernateBean<ProcessDBDicti
                 .addOrder(Order.desc("dictionaryName"))
                 .createCriteria("processDefinition")
                 .add(Restrictions.eq("latest", Boolean.TRUE))
+                .setResultTransformer(Criteria.DISTINCT_ROOT_ENTITY)
                 .list();
         updateCache(dictionaries);
         return dictionaries;
@@ -183,11 +199,6 @@ public class ProcessDictionaryDAOImpl extends SimpleHibernateBean<ProcessDBDicti
     @Override
     public ProcessDBDictionary fetchGlobalDictionary(String dictionaryId, String languageCode) {
         return fetchProcessDictionary(null, dictionaryId, languageCode);
-    }
-
-    @Override
-    public void createOrUpdateDictionary(ProcessDefinitionConfig definition, ProcessDBDictionary dictionary, boolean overwrite) {
-        createOrUpdateDictionaries(definition, Collections.singletonList(dictionary), overwrite);
     }
 
     public ProcessDBDictionary findDictionaryById(Long dictionaryId)
@@ -256,72 +267,125 @@ public class ProcessDictionaryDAOImpl extends SimpleHibernateBean<ProcessDBDicti
         updateCache(dictionary);
     }
 
-    @Override
-    public void createOrUpdateDictionaries(ProcessDefinitionConfig definition, List<ProcessDBDictionary> newDictionaries, boolean overwrite) {
-        List<ProcessDBDictionary> existingDBDictionaries = definition != null ? fetchProcessDictionaries(definition)
-                : fetchAllGlobalDictionaries();
-        Session session = getSession();
+    /** Create new global dicrionary. If there is already existing dictnioary, this method will delete it */
+    
+    public void processGlobalDictionaries(Collection<ProcessDBDictionary> newDictionaries, boolean overwrite)
+    {
+    	Collection<ProcessDBDictionary> existingDBDictionaries = fetchAllGlobalDictionaries();
         for (ProcessDBDictionary newDict : newDictionaries) 
         {
-        	ProcessDBDictionary existingDictionary = null;
-        	for (ProcessDBDictionary existingDict : existingDBDictionaries)
-        		if (existingDict.getDictionaryId().equals(newDict.getDictionaryId()) && existingDict.getLanguageCode().equals(newDict.getLanguageCode()))
-        		{
-        			existingDictionary = existingDict;
-        			break;
-        		}
+        	ProcessDBDictionary existingDictionary = getExistingProcessDictnioary(existingDBDictionaries, newDict.getDictionaryId(), newDict.getLanguageCode());
         	
-            boolean updated = false;
-        	if(existingDictionary != null)
+        	/* There is no dictionary, create new one */
+        	if(existingDictionary == null)
         	{
-                if (overwrite) 
-                {
-                    session.delete(existingDictionary);
-                } 
-                else 
-                {
-                	existingDictionary.getPermissions().clear();
-                	for(ProcessDBDictionaryPermission permission: newDict.getPermissions())
-                	{
-                		permission.setDictionary(existingDictionary);
-                		existingDictionary.getPermissions().add(permission);
-                	}
-                	
-                	existingDictionary.setDefaultDictionary(newDict.isDefaultDictionary());
-                	existingDictionary.setDescription(newDict.getDescription());
-                    for (ProcessDBDictionaryItem newItem : newDict.getItems().values()) {
-                        if (!existingDictionary.getItems().containsKey(newItem.getKey())) {
-                        	existingDictionary.addItem(newItem);
-                        }
-                    }
-                    session.saveOrUpdate(existingDictionary);
-                    updateCache(existingDictionary);
-                    updated = true;
-                }
+        		saveDictionary(newDict);
+                continue;
         	}
         	
-            if (!updated) {
-                newDict.setProcessDefinition(definition);
-                session.saveOrUpdate(newDict);
-                updateCache(newDict);
+        	/* If there is already dictionary, delete it */
+        	if(overwrite)
+        		deleteDictionary(existingDictionary);
+        	
+        	existingDictionary = mergeDictnionaries(existingDictionary, newDict);
+        	
+        	updateDictionary(existingDictionary);
+        }
+    }
+    
+    /** Create new global dicrionary. If there is already existing dictnioary, this method will delete it */
+    @Override
+    public void processProcessDictionaries(Collection<ProcessDBDictionary> newDictionaries, ProcessDefinitionConfig newProcess, ProcessDefinitionConfig oldProcess, boolean overwrite)
+    {	
+    	if(oldProcess == null)
+    		oldProcess = newProcess;
+    	
+    	boolean isTheSame = newProcess.getId().equals(oldProcess.getId());
+    	
+    	Collection<ProcessDBDictionary> existingDBDictionaries = fetchProcessDictionaries(oldProcess);
+
+    	
+        for (ProcessDBDictionary newDict : newDictionaries) 
+        {
+        	newDict.setProcessDefinition(newProcess);
+        	
+        	ProcessDBDictionary existingDictionary = getExistingProcessDictnioary(existingDBDictionaries, newDict.getDictionaryId(), newDict.getLanguageCode());
+        	
+        	/* There is no dictionary, create new one */
+        	if(existingDictionary == null)
+        	{
+        		saveDictionary(newDict);
+                continue;
+        	}
+        	
+        	/* If there is already dictionary, delete it */
+        	if(overwrite)
+        		deleteDictionary(existingDictionary);
+        	
+        	if(isTheSame)
+        	{
+        		existingDictionary = mergeDictnionaries(existingDictionary, newDict);
+        		updateDictionary(existingDictionary);
+        	}
+        	else
+        	{
+        		newDict = mergeDictnionaries(newDict, existingDictionary);
+        		saveDictionary(newDict);
+        	}
+        }
+    }
+    
+    private void saveDictionary(ProcessDBDictionary dictionary)
+    {
+    	Session session = getSession();
+        session.saveOrUpdate(dictionary);
+        updateCache(dictionary);
+    }
+    
+    private void deleteDictionary(ProcessDBDictionary dictionary)
+    {
+    	Session session = getSession();
+    	session.delete(dictionary);
+    }
+    
+    private ProcessDBDictionary mergeDictnionaries(ProcessDBDictionary existingDictionary, ProcessDBDictionary newDict)
+    {
+    	existingDictionary.getPermissions().clear();
+    	for(ProcessDBDictionaryPermission permission: newDict.getPermissions())
+    	{
+    		permission.setDictionary(existingDictionary);
+    		existingDictionary.getPermissions().add(permission);
+    	}
+    	
+    	existingDictionary.setDefaultDictionary(newDict.isDefaultDictionary());
+    	existingDictionary.setDescription(newDict.getDescription());
+        for (ProcessDBDictionaryItem newItem : newDict.getItems().values()) {
+            if (!existingDictionary.getItems().containsKey(newItem.getKey())) {
+            	existingDictionary.addItem(newItem);
             }
         }
+        
+        return existingDictionary;
+    }
+    
+    
+    private ProcessDBDictionary getExistingProcessDictnioary(Collection<ProcessDBDictionary> dictionaries, String dictionaryId, String languageCode)
+    {
+    	for (ProcessDBDictionary existingDict : dictionaries)
+    		if (existingDict.getDictionaryId().equals(dictionaryId) && existingDict.getLanguageCode().equals(languageCode))
+    			return existingDict;
+    	
+    	return null;
     }
 
     @Override
     public void updateDictionary(ProcessDBDictionary dictionary) {
         Session session = getSession();
-        session.update(dictionary);
+        session.saveOrUpdate(dictionary);
+        dictionary = (ProcessDBDictionary)session.merge(dictionary);
         session.flush();
         updateCache(dictionary);
     }
-
-//	@Override
-//	public void copyDictionaries(ProcessDefinitionConfig oldDefinitionConfig,
-//			ProcessDefinitionConfig newDefinitionConfig) {
-//		// TODO Auto-generated method stub
-//
-//	}
 
     @Override
     public void copyDictionaries(ProcessDefinitionConfig oldDefinitionConfig,
@@ -332,21 +396,6 @@ public class ProcessDictionaryDAOImpl extends SimpleHibernateBean<ProcessDBDicti
         List<ProcessDBDictionary> oldDBDictionariesList = fetchProcessDictionaries(oldDefinitionConfig);
 
         Collection<ProcessDBDictionary> oldDBDictionaries = CollectionUtils.select(oldDBDictionariesList, new UniquePredicate());
-
-        //newDefinitionConfig.getBpmDefinitionKey()
-
-//		PropertyFilter vetoer = new PropertyFilter() {
-//		    public boolean propagate(String propertyName, Method readerMethod) {
-//		        return readerMethod.getReturnType() != ProcessDefinitionConfig.class;
-//		    }
-//		};
-//		Hibernate3BeanReplicator replicator = new Hibernate3BeanReplicator(null, null, vetoer);
-//
-//		for (ProcessDBDictionary existingDict : existingDBDictionaries) {
-//			ProcessDBDictionary newDict = replicator.deepCopy(existingDict);
-//			newDict.setProcessDefinition(newDefinitionConfig);
-//			session.save(newDict);
-//		}
 
 
         for (ProcessDBDictionary oldDict : oldDBDictionaries) {
@@ -379,16 +428,17 @@ public class ProcessDictionaryDAOImpl extends SimpleHibernateBean<ProcessDBDicti
                         newValue.setItem(newItem);
                         newItem.getValues().add(newValue);
 
-                        Map<String, ProcessDBDictionaryItemExtension> extensions = value.getExtensions();
-                        newValue.setExtensions(new HashMap<String, ProcessDBDictionaryItemExtension>());
+                        Set<ProcessDBDictionaryItemExtension> extensions = value.getExtensions();
+                        newValue.setExtensions(new HashSet<ProcessDBDictionaryItemExtension>());
 
-                        for (Entry<String, ProcessDBDictionaryItemExtension> extension : extensions.entrySet()) {
+                        for (ProcessDBDictionaryItemExtension extension : extensions) 
+                        {
                             ProcessDBDictionaryItemExtension newExtension = new ProcessDBDictionaryItemExtension();
-                            PropertyUtils.copyProperties(newExtension, extension.getValue());
+                            PropertyUtils.copyProperties(newExtension, extension);
                             newExtension.setId(null);
 
                             newExtension.setItemValue(newValue);
-                            newValue.getExtensions().put(extension.getKey(), newExtension);
+                            newValue.addExtension(newExtension);
                         }
                     }
                 }
@@ -419,4 +469,20 @@ public class ProcessDictionaryDAOImpl extends SimpleHibernateBean<ProcessDBDicti
             }
         }
     }
+
+	@Override
+	public ProcessDBDictionaryItem refresh(ProcessDBDictionaryItem item) 
+	{
+		if(item == null)
+			return null;
+		
+		if(item.getId() == null)
+			return item;
+		
+		return (ProcessDBDictionaryItem)getSession()
+				.createCriteria(ProcessDBDictionaryItem.class)
+				.add(Restrictions.eq("id", item.getId()))
+				.setFetchMode("dictionary", FetchMode.JOIN)
+				.uniqueResult();
+	}
 }

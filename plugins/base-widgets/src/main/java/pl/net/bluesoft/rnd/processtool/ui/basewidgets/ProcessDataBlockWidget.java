@@ -312,7 +312,6 @@ public class ProcessDataBlockWidget extends BaseProcessToolVaadinWidget implemen
                 
                 // file upload fix
                 if (component instanceof FileUploadComponent && value instanceof ProcessInstanceAttachmentAttribute){
-                	element.setValue(value);
                 	component.setValue(value);
                 }
                 
@@ -348,7 +347,6 @@ public class ProcessDataBlockWidget extends BaseProcessToolVaadinWidget implemen
         new ComponentEvaluator<AbstractSelect>(dictContainers) {
             @Override
             public void evaluate(AbstractSelect component, WidgetElement element) throws Exception {
-            	
                 ProcessDictionary dict = nvl(element.getGlobal(), false) ?
                         processDictionaryRegistry.getSpecificOrDefaultGlobalDictionary(element.getProvider(),
                                 element.getDict(), i18NSource.getLocale().toString()) :
@@ -362,24 +360,18 @@ public class ProcessDataBlockWidget extends BaseProcessToolVaadinWidget implemen
                     for (Object o : dict.items()) {
                         ProcessDictionaryItem item = (ProcessDictionaryItem) o;
                         component.addItem(item.getKey());
-                        String itemKey = item.getKey().toString();
                         ProcessDictionaryItemValue val = item.getValueForDate(validForDate);
-                        String message = getMessage((String) (val != null ? val.getValue() : item.getKey()));
-                        component.setItemCaption(item.getKey(),message);
+                        component.setItemCaption(item.getKey(), getMessage(
+                                (String) (val != null ? val.getValue() : item.getKey())));
                         if (element instanceof AbstractSelectWidgetElement) {
                             AbstractSelectWidgetElement select = (AbstractSelectWidgetElement) element;
                             if (select.getDefaultSelect() != null && i == select.getDefaultSelect()) {
                                 component.setValue(item.getKey());
                             }
-                            List<ItemElement> values = select.getValues();
-                            values.add(new ItemElement(itemKey, message));
-                            
                         }
-                        
                         ++i;
                     }
                 }
-                
             }
         };
     }
@@ -399,16 +391,12 @@ public class ProcessDataBlockWidget extends BaseProcessToolVaadinWidget implemen
                     for (Object o : dict.getItems()) {
                         ProcessInstanceDictionaryItem itemProcess = (ProcessInstanceDictionaryItem) o;
                         component.addItem(itemProcess.getKey());
-                        String itemKey = itemProcess.getKey().toString();
-                        String value = itemProcess.getValue();
-                        component.setItemCaption(itemProcess.getKey(), value);
+                        component.setItemCaption(itemProcess.getKey(), itemProcess.getValue());
                         if (element instanceof AbstractSelectWidgetElement) {
                             AbstractSelectWidgetElement select = (AbstractSelectWidgetElement) element;
                             if (select.getDefaultSelect() != null && i == select.getDefaultSelect()) {
                                 component.setValue(itemProcess.getKey());
                             }
-                            List<ItemElement> values = select.getValues();
-                            values.add(new ItemElement(itemKey, value));
                         }
                         ++i;
                     }
@@ -478,14 +466,13 @@ public class ProcessDataBlockWidget extends BaseProcessToolVaadinWidget implemen
 
         setupWidget(widgetsDefinitionElement, mainPanel);
 
-        List<AbstractComponent> dynamicValidationComponents = createComponents();
-        
-      
+        for (WidgetElement we : widgetsDefinitionElement.getWidgets()) {
+            processWidgetElement(widgetsDefinitionElement, we, mainPanel);
+        }
         loadDictionaries();
         loadProcessInstanceDictionaries();
         loadBindings();
-        
-        addListinersToComponents(dynamicValidationComponents);
+
         if (executeScript()) {
 
             mainPanel.removeAllComponents();
@@ -498,39 +485,17 @@ public class ProcessDataBlockWidget extends BaseProcessToolVaadinWidget implemen
                 mainPanel = null;
             }
         }
-        
-       
-        
 
         return mainPanel;
     }
 
-    private void addListinersToComponents(
-			List<AbstractComponent> dynamicValidationComponents) {
-    	for (AbstractComponent component : dynamicValidationComponents) {
-			
-		
-    	((Field) component).addListener(new ValueChangeListener() {
-            @Override
-            public void valueChange(ValueChangeEvent event) {
-            	boolean executedScript = executeScript();
-                if (!executedScript){
-                    return;
-                }
-                rebuildForm();
-            	
-            }
-        });
-    	}
-	}
-
-	private boolean executeScript() {
-    	
+    private boolean executeScript() {
     	
         boolean executed = false;
         try {
             if (!hasText(getScriptEngineType()) || !hasText(getScriptSourceCode()) && !hasText(getScriptExternalUrl()))
                 return executed;
+
             Map<String, Object> fields = getFieldsMap(widgetsDefinitionElement.getWidgets());
             fields.put("process", processInstance);
 
@@ -546,7 +511,7 @@ public class ProcessDataBlockWidget extends BaseProcessToolVaadinWidget implemen
             scriptProcessor.process(fields, is);
             executed = true;
             boundProperties.clear();
-         //   dictContainers.clear();
+            dictContainers.clear();
 
         } catch (Exception e) {
             handleException(getMessage("widget.process_data_block.editor.validation.script.error"), e);
@@ -655,29 +620,6 @@ public class ProcessDataBlockWidget extends BaseProcessToolVaadinWidget implemen
 
         return component;
     }
-    
-    private List<AbstractComponent> createComponents(){
-    	List<AbstractComponent> dynamicValidationElements = new ArrayList<AbstractComponent>();
-    	
-    	mainPanel.removeAllComponents();
-        for (WidgetElement we : widgetsDefinitionElement.getWidgets()) {
-            AbstractComponent component = processWidgetElement(widgetsDefinitionElement, we, mainPanel);
-            if (component instanceof Field) {
-                if (we.getDynamicValidation() == Boolean.TRUE){
-                	dynamicValidationElements.add(component);
-                }
-            }
-        } 
-        return dynamicValidationElements;
-    	
-    }
-    
-    private void rebuildForm(){
-List<AbstractComponent> dynamicValidationComponents = createComponents();
-addListinersToComponents(dynamicValidationComponents);
-    	
-    }
-   
 
     /**
      * Override in subclasses for additional element/component processing
@@ -722,10 +664,6 @@ addListinersToComponents(dynamicValidationComponents);
 
     private AbstractComponent createFileUploadField(UploadWidgetElement element) {
         FileUploadComponent upload = new FileUploadComponent(i18NSource);
-        if(element.getValue()!=null){
-        	upload.setValue(element.getValue());
-        	
-        }
         return upload;
     }
 

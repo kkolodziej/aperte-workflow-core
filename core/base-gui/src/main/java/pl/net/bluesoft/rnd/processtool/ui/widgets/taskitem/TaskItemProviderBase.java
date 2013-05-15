@@ -180,7 +180,6 @@ public class TaskItemProviderBase {
 			}
 		}
 		b.setHeight("26px");
-		b.setWidth(null);
 		return b;
 	}
     public Component createTaskPaneProcessId(TaskItemProviderParams params) {
@@ -247,16 +246,10 @@ public class TaskItemProviderBase {
 
 		if (assignedName == null) {
 			UserData owner = params.getTask().getOwner();
-			if (owner != null && owner.getLogin() != null){
-				if(owner.getLastName() != null){
-					assignedName = owner.getRealName();
-				}
-				else{
-					assignedName = owner.getLogin();
-				}
-			}else{
-			assignedName = params.getMessage("activity.assigned.empty");
-			}
+
+			assignedName = (owner != null && owner.getLogin() != null && owner.getLastName() != null)
+					? owner.getRealName()
+					: params.getMessage("activity.assigned.empty");
 		}
 		return labelWithIcon(params.getImage("/img/user_assigned.png"), assignedName, "tti-person", params.getMessage("activity.assigned"));
 	}

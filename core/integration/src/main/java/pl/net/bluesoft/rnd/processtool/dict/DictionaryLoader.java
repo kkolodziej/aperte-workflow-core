@@ -24,7 +24,7 @@ public class DictionaryLoader extends OXHelper {
 
     @Override
     protected Class[] getSupportedClasses() {
-        return new Class[] { 
+        return new Class[] {
                 Dictionary.class,
                 DictionaryPermission.class,
                 DictionaryEntry.class,
@@ -71,7 +71,7 @@ public class DictionaryLoader extends OXHelper {
                         dbItemExt.setValue(ext.getValue());
                         dbItemExt.setValueType(ext.getValueType());
                         dbItemExt.setDescription(ext.getDescription());
-                        dbValue.addItemExtension(dbItemExt);
+                        dbValue.addExtension(dbItemExt);
                     }
                     dbItem.addValue(dbValue);
                 }

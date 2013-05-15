@@ -25,7 +25,6 @@ import pl.net.bluesoft.rnd.processtool.model.config.ProcessToolAutowire;
 import pl.net.bluesoft.rnd.processtool.model.config.ProcessToolSequence;
 import pl.net.bluesoft.rnd.processtool.model.config.ProcessToolSetting;
 import pl.net.bluesoft.rnd.processtool.plugins.ProcessToolRegistry;
-import pl.net.bluesoft.rnd.processtool.userqueues.IUserProcessQueueManager;
 import pl.net.bluesoft.util.eventbus.EventBusManager;
 import pl.net.bluesoft.util.lang.Formats;
 
@@ -57,18 +56,15 @@ public class ActivitiContextImpl implements ProcessToolContext {
     private Boolean closed = false;
     private ActivitiContextFactoryImpl.CustomStandaloneProcessEngineConfiguration customStandaloneProcessEngineConfiguration;
 
-	private IUserProcessQueueManager userProcessQueueManager;
-
     public ActivitiContextImpl(Session hibernateSession,
                                ProcessToolContextFactory factory,
                                ProcessEngine processEngine,
                                ActivitiContextFactoryImpl.CustomStandaloneProcessEngineConfiguration customStandaloneProcessEngineConfiguration) {
 		this.hibernateSession = hibernateSession;
         this.customStandaloneProcessEngineConfiguration = customStandaloneProcessEngineConfiguration;
-		this.factory = factory; 
+		this.factory = factory;
 		this.processEngine = processEngine;
         this.autowiringCache = getRegistry().getCache(ProcessToolAutowire.class.getName());
-		this.userProcessQueueManager = new UserProcessQueueManager(hibernateSession, getUserProcessQueueDAO());
 
 		transaction = hibernateSession.beginTransaction();
 	}
@@ -145,10 +141,6 @@ public class ActivitiContextImpl implements ProcessToolContext {
                 dao = (T) getRegistry().getProcessDefinitionDAO(hibernateSession);
             } else if (UserSubstitutionDAO.class.equals(daoClass)) {
                 dao = (T) getRegistry().getUserSubstitutionDAO(hibernateSession);
-            }else if (ProcessInstanceSimpleAttributeDAO.class.equals(daoClass)) {
-                dao = (T) getRegistry().getProcessInstanceSimpleAttributeDAO(hibernateSession);
-            }else if (ProcessStateActionDAO.class.equals(daoClass)) {
-                dao = (T) getRegistry().getProcessStateAction(hibernateSession);
             }
             if (dao != null) {
                 daoCache.put(daoClass, dao);
@@ -185,23 +177,8 @@ public class ActivitiContextImpl implements ProcessToolContext {
     public UserSubstitutionDAO getUserSubstitutionDAO() {
         return getHibernateDAO(UserSubstitutionDAO.class);
     }
-    
-    @Override
-	public ProcessInstanceSimpleAttributeDAO getProcessInstanceSimpleAttributeDAO() {
-    	 return getHibernateDAO(ProcessInstanceSimpleAttributeDAO.class);
-	}
-    
-    @Override
-	public ProcessStateActionDAO getProcessStateActionDAO() {
-    	return getHibernateDAO(ProcessStateActionDAO.class);
-	}
 
-	@Override
-	public UserProcessQueueDAO getUserProcessQueueDAO() {
-		return getHibernateDAO(UserProcessQueueDAO.class);
-	}
-
-	@Override
+    @Override
     public Session getHibernateSession() {
         verifyContextOpen();
         return hibernateSession;
@@ -336,15 +313,4 @@ public class ActivitiContextImpl implements ProcessToolContext {
         TaskService es = getProcessEngine().getTaskService();
         return es.getVariables(pi.getInternalId());
     }
-
-	public Object getBpmVariable(ProcessInstance pi, String variableName) {
-		TaskService es = getProcessEngine().getTaskService();
-		return es.getVariable(pi.getInternalId(), variableName);
-	}
-
-	@Override
-	public IUserProcessQueueManager getUserProcessQueueManager()
-	{
-		return userProcessQueueManager;
-	}
 }

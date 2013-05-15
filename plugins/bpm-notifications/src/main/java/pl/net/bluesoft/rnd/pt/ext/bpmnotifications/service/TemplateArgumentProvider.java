@@ -13,7 +13,7 @@ import java.util.Map;
 public interface TemplateArgumentProvider {
 	String getName();
 
-	void getArguments(Map<String, Object> arguments, TemplateArgumentProviderParams params);
+	void addData(TemplateData templateData, TemplateArgumentProviderParams params);
 
 	List<TemplateArgumentDescription> getArgumentDescriptions(I18NSource i18NSource);
 }

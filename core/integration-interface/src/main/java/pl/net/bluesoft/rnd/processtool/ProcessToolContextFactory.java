@@ -16,22 +16,5 @@ public interface ProcessToolContextFactory {
 
 	ProcessToolRegistry getRegistry();
 
-	void deployOrUpdateProcessDefinition(final InputStream bpmStream,
-	                                     final ProcessDefinitionConfig cfg,
-	                                     final ProcessQueueConfig[] queues,
-	                                     final InputStream imageStream,
-	                                     final InputStream logoStream);
-
-	void deployOrUpdateProcessDefinition(InputStream jpdlStream,
-	                                     InputStream processToolConfigStream,
-	                                     InputStream queueConfigStream,
-	                                     final InputStream imageStream,
-	                                     final InputStream logoStream);
-
-//    void deployOrUpdateProcessDefinition(InputStream jpdlStream,
-//                                         InputStream processToolConfigStream,
-//                                         InputStream queueConfigStream,
-//                                         InputStream logoStream);
-
 	void updateSessionFactory(SessionFactory sf);
 }

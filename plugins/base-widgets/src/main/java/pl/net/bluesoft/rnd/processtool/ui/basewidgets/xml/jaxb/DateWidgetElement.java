@@ -51,7 +51,6 @@ public class DateWidgetElement extends WidgetElement {
     @XStreamAsAttribute
     @AperteDoc(humanNameKey = "date.discludeNotAfter", descriptionKey = "date.discludeNotAfter.description")
     private Boolean discludeNotAfter;
-
     
     @XmlAttribute
     @XStreamAsAttribute

@@ -100,7 +100,7 @@ public class UserProcessQueueManager implements IUserProcessQueueManager
 			/* Assign process to its owner queue */
 			if(ownerLogin.equals(assignee))
 			{
-				updateUserProcessQueue(taskIdString, processId, ownerLogin, QueueType.ASSIGNED_TO_CURRENT_USER);
+				updateUserProcessQueue(taskIdString, processId, ownerLogin, QueueType.OWN_ASSIGNED);
 				taskAssignedToOneOfOwners = true;
 			}
 			
@@ -113,7 +113,7 @@ public class UserProcessQueueManager implements IUserProcessQueueManager
 				boolean shouldAddToOthersAssignedQueue = !taskAssignedToOneOfOwners && assignee != null;
 				
 				if(shouldAddToOthersAssignedQueue)
-					updateUserProcessQueue(taskIdString, processId, assignee, QueueType.ASSIGNED_TO_CURRENT_USER);
+					updateUserProcessQueue(taskIdString, processId, assignee, QueueType.OTHERS_ASSIGNED);
 				
 				updateUserProcessQueue(taskIdString, processId, ownerLogin, QueueType.OWN_IN_PROGRESS); 
 			}

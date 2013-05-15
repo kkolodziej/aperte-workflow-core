@@ -2,26 +2,26 @@ package pl.net.bluesoft.rnd.pt.ext.jbpm;
 
 import static pl.net.bluesoft.util.lang.StringUtil.hasText;
 
+import java.util.ArrayList;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
 import org.hibernate.Session;
-import org.hibernate.Transaction;
 import org.hibernate.criterion.Restrictions;
 import org.jbpm.api.ExecutionService;
 import org.jbpm.api.ProcessEngine;
 
+import pl.net.bluesoft.rnd.processtool.BasicSettings;
+import pl.net.bluesoft.rnd.processtool.IProcessToolSettings;
 import pl.net.bluesoft.rnd.processtool.ProcessToolContext;
-import pl.net.bluesoft.rnd.processtool.ProcessToolContextFactory;
 import pl.net.bluesoft.rnd.processtool.bpm.ProcessToolSessionFactory;
 import pl.net.bluesoft.rnd.processtool.bpm.exception.ProcessToolException;
 import pl.net.bluesoft.rnd.processtool.dao.ProcessDefinitionDAO;
 import pl.net.bluesoft.rnd.processtool.dao.ProcessDictionaryDAO;
 import pl.net.bluesoft.rnd.processtool.dao.ProcessInstanceDAO;
 import pl.net.bluesoft.rnd.processtool.dao.ProcessInstanceFilterDAO;
-import pl.net.bluesoft.rnd.processtool.dao.ProcessInstanceSimpleAttributeDAO;
-import pl.net.bluesoft.rnd.processtool.dao.ProcessStateActionDAO;
 import pl.net.bluesoft.rnd.processtool.dao.UserDataDAO;
 import pl.net.bluesoft.rnd.processtool.dao.UserProcessQueueDAO;
 import pl.net.bluesoft.rnd.processtool.dao.UserSubstitutionDAO;
@@ -47,54 +47,51 @@ import pl.net.bluesoft.util.lang.Formats;
  *
  * @author tlipski@bluesoft.net.pl
  */
-public class ProcessToolContextImpl implements ProcessToolContext { 
+public class ProcessToolContextImpl implements ProcessToolContext {
     private Session hibernateSession;
-    private Transaction transaction;
+
     private ProcessToolJbpmSessionFactory processToolJbpmSessionFactory;
     private ProcessDictionaryRegistry processDictionaryRegistry;
     private ProcessEngine processEngine;
-    private ProcessToolContextFactory factory;
+    private ProcessToolRegistry registry;
     private IUserProcessQueueManager userProcessQueueManager;
 
     private Map<String, String> autowiringCache;
     private Map<Class<? extends HibernateBean>, HibernateBean> daoCache = new HashMap<Class<? extends HibernateBean>, HibernateBean>();
 
     private Boolean closed = false;
+    
+    private Collection<HibernateTransactionCallback> callbacks;
 
     public ProcessToolContextImpl(Session hibernateSession,
-                                  ProcessToolContextFactory factory,
+    								ProcessToolRegistry registry,
                                   ProcessEngine processEngine) {
         this.hibernateSession = hibernateSession;
-        this.factory = factory;
+        this.registry = registry;
         this.processEngine = processEngine;
         this.autowiringCache = getRegistry().getCache(ProcessToolAutowire.class.getName());
         this.userProcessQueueManager = new UserProcessQueueManager(hibernateSession, getUserProcessQueueDAO());
         processEngine.setHibernateSession(hibernateSession);
-
-        transaction = hibernateSession.beginTransaction();
+        
+        callbacks = new ArrayList<HibernateTransactionCallback>();
     }
 
-    public void rollback() {
-        transaction.rollback();
+    public void close() 
+    {
+       closed = true;
+       
+       for(HibernateTransactionCallback callback: callbacks)
+    	   callback.onCommit();
     }
-
-    public void commit() {
-        transaction.commit();
-
-    }
-
-    public synchronized void close() {
-        try {
-            processEngine.close();
-        } finally {
-            try {
-                commit();
-            } finally {
-                hibernateSession.close();
-                closed = true;
-            }
-        }
-    }
+    
+	@Override
+	public void rollback() 
+	{
+       closed = true;
+       
+       for(HibernateTransactionCallback callback: callbacks)
+    	   callback.onRollback();
+	}
 
     private synchronized void verifyContextOpen() {
         if (closed) {
@@ -106,13 +103,19 @@ public class ProcessToolContextImpl implements ProcessToolContext {
 
     }
 
-    public boolean isActive() {
+    public boolean isActive() 
+    {
+    	/* Check hibernate session */
+    	if(!hibernateSession.isOpen())
+    		return false;
+    	
         return !closed;
     }
 
     @Override
-    public void addTransactionCallback(HibernateTransactionCallback callback) {
-        transaction.registerSynchronization(callback);
+    public void addTransactionCallback(HibernateTransactionCallback callback) 
+    {
+    	callbacks.add(callback);
     }
 
 
@@ -129,7 +132,7 @@ public class ProcessToolContextImpl implements ProcessToolContext {
 
     @Override
     public ProcessToolRegistry getRegistry() {
-        return factory.getRegistry();
+        return registry;
     }
 
     @SuppressWarnings("unchecked")
@@ -151,10 +154,6 @@ public class ProcessToolContextImpl implements ProcessToolContext {
                 dao = (T) getRegistry().getUserProcessQueueDAO(hibernateSession);
             } else if (UserSubstitutionDAO.class.equals(daoClass)) {
                 dao = (T) getRegistry().getUserSubstitutionDAO(hibernateSession);
-            }else if (ProcessInstanceSimpleAttributeDAO.class.equals(daoClass)) {
-                dao = (T) getRegistry().getProcessInstanceSimpleAttributeDAO(hibernateSession);
-            }else if (ProcessStateActionDAO.class.equals(daoClass)) {
-                dao = (T) getRegistry().getProcessStateAction(hibernateSession);
             }
             if (dao != null) {
                 daoCache.put(daoClass, dao);
@@ -196,16 +195,6 @@ public class ProcessToolContextImpl implements ProcessToolContext {
 	public UserProcessQueueDAO getUserProcessQueueDAO() {
 		return getHibernateDAO(UserProcessQueueDAO.class);
 	}
-    @Override
-	public ProcessInstanceSimpleAttributeDAO getProcessInstanceSimpleAttributeDAO() {
-		return getHibernateDAO(ProcessInstanceSimpleAttributeDAO.class);
-	}
-    
-    @Override
-	public ProcessStateActionDAO getProcessStateActionDAO() {
-		return getHibernateDAO(ProcessStateActionDAO.class);
-	}
-
 
     @Override
     public Session getHibernateSession() {
@@ -223,25 +212,25 @@ public class ProcessToolContextImpl implements ProcessToolContext {
 
     @Override
     public EventBusManager getEventBusManager() {
-        return factory.getRegistry().getEventBusManager();
+        return registry.getEventBusManager();
     }
 
     @Override
-    public String getSetting(String key) {
+    public String getSetting(IProcessToolSettings key) {
         verifyContextOpen();
         ProcessToolSetting setting = (ProcessToolSetting) hibernateSession.createCriteria(ProcessToolSetting.class)
-                .add(Restrictions.eq("key", key)).uniqueResult();
+                .add(Restrictions.eq("key", key.toString())).uniqueResult();
         return setting != null ? setting.getValue() : null;
     }
 
     @Override
-    public void setSetting(String key, String value) {
+    public void setSetting(IProcessToolSettings key, String value) {
         verifyContextOpen();
         List list = hibernateSession.createCriteria(ProcessToolSetting.class).add(Restrictions.eq("key", key)).list();
         ProcessToolSetting setting;
         if (list.isEmpty()) {
             setting = new ProcessToolSetting();
-            setting.setKey(key);
+            setting.setKey(key.toString());
         } else {
             setting = (ProcessToolSetting) list.get(0);
         }
@@ -307,14 +296,9 @@ public class ProcessToolContextImpl implements ProcessToolContext {
 
     @Override
     public UserData getAutoUser() {
-        return new UserData(Formats.nvl(getSetting(AUTO_USER_LOGIN), "system"), Formats.nvl(getSetting(AUTO_USER_NAME), "System"),
-                Formats.nvl(getSetting(AUTO_USER_EMAIL), "awf@bluesoft.net.pl"));
+        return new UserData(Formats.nvl(getSetting(BasicSettings.AUTO_USER_LOGIN), "system"), Formats.nvl(getSetting(BasicSettings.AUTO_USER_NAME), "System"),
+                Formats.nvl(getSetting(BasicSettings.AUTO_USER_EMAIL), "awf@bluesoft.net.pl"));
     }
-
-    public ProcessToolContextFactory getFactory() {
-        return factory;
-    }
-
 
     public ProcessEngine getProcessEngine() {
         return processEngine;

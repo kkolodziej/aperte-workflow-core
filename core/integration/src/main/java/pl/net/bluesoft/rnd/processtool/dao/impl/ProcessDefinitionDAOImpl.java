@@ -1,19 +1,37 @@
 package pl.net.bluesoft.rnd.processtool.dao.impl;
 
+import static pl.net.bluesoft.util.lang.FormatUtil.nvl;
+
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.Date;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.logging.Logger;
+
 import org.hibernate.Session;
 import org.hibernate.criterion.Order;
 import org.hibernate.criterion.Restrictions;
+
 import pl.net.bluesoft.rnd.processtool.dao.ProcessDefinitionDAO;
 import pl.net.bluesoft.rnd.processtool.hibernate.SimpleHibernateBean;
 import pl.net.bluesoft.rnd.processtool.model.BpmTask;
-import pl.net.bluesoft.rnd.processtool.model.ProcessInstance;
-import pl.net.bluesoft.rnd.processtool.model.config.*;
+import pl.net.bluesoft.rnd.processtool.model.config.IPermission;
+import pl.net.bluesoft.rnd.processtool.model.config.ProcessDefinitionConfig;
+import pl.net.bluesoft.rnd.processtool.model.config.ProcessDefinitionPermission;
+import pl.net.bluesoft.rnd.processtool.model.config.ProcessQueueConfig;
+import pl.net.bluesoft.rnd.processtool.model.config.ProcessQueueRight;
+import pl.net.bluesoft.rnd.processtool.model.config.ProcessStateAction;
+import pl.net.bluesoft.rnd.processtool.model.config.ProcessStateActionAttribute;
+import pl.net.bluesoft.rnd.processtool.model.config.ProcessStateActionPermission;
+import pl.net.bluesoft.rnd.processtool.model.config.ProcessStateConfiguration;
+import pl.net.bluesoft.rnd.processtool.model.config.ProcessStateWidget;
+import pl.net.bluesoft.rnd.processtool.model.config.ProcessStateWidgetAttribute;
+import pl.net.bluesoft.rnd.processtool.model.config.ProcessStateWidgetPermission;
 import pl.net.bluesoft.util.lang.Lang;
-
-import java.util.*;
-import java.util.logging.Logger;
-
-import static pl.net.bluesoft.util.lang.FormatUtil.nvl;
 
 /**
  * @author tlipski@bluesoft.net.pl
@@ -136,15 +154,21 @@ public class ProcessDefinitionDAOImpl extends SimpleHibernateBean<ProcessDefinit
 
 	}
 
-    private boolean stringEq(String s1, String s2) {
+    private boolean isEqual(String s1, String s2) {
         return s1 == null && s2 == null || !(s1 != null && s2 == null) && !(s2 != null && s1 == null) && s1.equals(s2);
     }
+    
+    private boolean isEqual(Boolean s1, Boolean s2) {
+        return s1 == null && s2 == null || !(s1 != null && s2 == null) && !(s2 != null && s1 == null) && s1.equals(s2);
+    }
+    
 	private boolean compareStates(ProcessStateConfiguration newState, ProcessStateConfiguration oldState) {
 		if (newState.getActions().size() != oldState.getActions().size()) return false;
-        if (!stringEq(newState.getDescription(),oldState.getDescription())) return false;
-		if (!stringEq(newState.getCommentary(),oldState.getCommentary())) return false;
-		if (!stringEq(newState.getCommentary(),oldState.getCommentary())) return false;
-
+        if (!isEqual(newState.getDescription(),oldState.getDescription())) return false;
+		if (!isEqual(newState.getCommentary(),oldState.getCommentary())) return false;
+		if (!isEqual(newState.getCommentary(),oldState.getCommentary())) return false;
+		if (!isEqual(newState.getEnableExternalAccess(),oldState.getEnableExternalAccess())) return false;
+		
 		Map<String,ProcessStateAction> newActionMap = new HashMap();
 		for (ProcessStateAction a : newState.getActions()) {
 			newActionMap.put(a.getBpmName(), a);
@@ -204,6 +228,7 @@ public class ProcessDefinitionDAOImpl extends SimpleHibernateBean<ProcessDefinit
                 nvl(newAction.getBpmName(),"").equals(nvl(oldAction.getBpmName(), "")) &&
                 nvl(newAction.getAutohide(),false).equals(nvl(oldAction.getAutohide(),false)) &&
                 nvl(newAction.getSkipSaving(),false).equals(nvl(oldAction.getSkipSaving(),false)) &&
+                nvl(newAction.getHideForExternalAccess(),false).equals(nvl(oldAction.getHideForExternalAccess(),false)) &&
                 nvl(newAction.getLabel(),"").equals(nvl(oldAction.getLabel(), "")) &&
                 nvl(newAction.getNotification(),"").equals(nvl(oldAction.getNotification(), "")) &&
                 Lang.equals(newAction.getMarkProcessImportant(), oldAction.getMarkProcessImportant()) &&
@@ -224,13 +249,13 @@ public class ProcessDefinitionDAOImpl extends SimpleHibernateBean<ProcessDefinit
         return true;
     }
 
-    private boolean comparePermissions(Set<? extends AbstractPermission> newPermissions, Set<? extends AbstractPermission> oldPermissions) {
+    private boolean comparePermissions(Set<? extends IPermission> newPermissions, Set<? extends IPermission> oldPermissions) {
 		if (newPermissions.size() != oldPermissions.size()) return false;
-		Set<String> permissionSet = new HashSet();
-		for (AbstractPermission p : newPermissions) {
+		Set<String> permissionSet = new HashSet<String>();
+		for (IPermission p : newPermissions) {
 			permissionSet.add(p.getPrivilegeName() + "|||" + p.getRoleName());
 		}
-		for (AbstractPermission p : oldPermissions) {
+		for (IPermission p : oldPermissions) {
 			if (!permissionSet.contains(p.getPrivilegeName() + "|||" + p.getRoleName())) return false;
 		}
 		return true;

@@ -1,13 +1,6 @@
 package pl.net.bluesoft.rnd.processtool.plugins.osgi;
 
-import com.thoughtworks.xstream.XStream;
-import org.aperteworkflow.util.liferay.LiferayBridge;
-import org.osgi.framework.Bundle;
-import org.osgi.framework.Constants;
-import pl.net.bluesoft.rnd.processtool.plugins.ProcessToolRegistry;
-import pl.net.bluesoft.rnd.processtool.steps.ProcessToolProcessStep;
-import pl.net.bluesoft.rnd.util.i18n.impl.PropertiesBasedI18NProvider;
-import pl.net.bluesoft.rnd.util.i18n.impl.PropertyLoader;
+import static pl.net.bluesoft.rnd.processtool.plugins.osgi.OSGiBundleHelper.getBundleResourceStream;
 
 import java.io.File;
 import java.io.IOException;
@@ -19,7 +12,25 @@ import java.util.HashSet;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
-import static pl.net.bluesoft.rnd.processtool.plugins.osgi.OSGiBundleHelper.getBundleResourceStream;
+import org.osgi.framework.Bundle;
+import org.osgi.framework.Constants;
+
+import pl.net.bluesoft.rnd.processtool.ProcessToolContext;
+import pl.net.bluesoft.rnd.processtool.ProcessToolContextCallback;
+import pl.net.bluesoft.rnd.processtool.dao.ProcessDefinitionDAO;
+import pl.net.bluesoft.rnd.processtool.dao.ProcessDictionaryDAO;
+import pl.net.bluesoft.rnd.processtool.di.ObjectFactory;
+import pl.net.bluesoft.rnd.processtool.dict.DictionaryLoader;
+import pl.net.bluesoft.rnd.processtool.dict.xml.ProcessDictionaries;
+import pl.net.bluesoft.rnd.processtool.model.config.ProcessDefinitionConfig;
+import pl.net.bluesoft.rnd.processtool.plugins.ProcessToolRegistry;
+import pl.net.bluesoft.rnd.processtool.plugins.deployment.ProcessDeployer;
+import pl.net.bluesoft.rnd.processtool.roles.IUserRolesManager;
+import pl.net.bluesoft.rnd.processtool.steps.ProcessToolProcessStep;
+import pl.net.bluesoft.rnd.util.i18n.impl.PropertiesBasedI18NProvider;
+import pl.net.bluesoft.rnd.util.i18n.impl.PropertyLoader;
+
+import com.thoughtworks.xstream.XStream;
 
 /**
  * User: POlszewski
@@ -196,36 +207,59 @@ public class BundleInstallationHandler {
 		}
 	}
 
-	private void handleProcessDeployment(int eventType, OSGiBundleHelper bundleHelper, ProcessToolRegistry toolRegistry) {
+	private void handleProcessDeployment(int eventType, final OSGiBundleHelper bundleHelper, final ProcessToolRegistry toolRegistry) {
 		final Bundle bundle = bundleHelper.getBundle();
 		String[] properties = bundleHelper.getHeaderValues(PROCESS_DEPLOYMENT);
-		for (String processPackage : properties) {
-			String providerId = bundle.getBundleId() + SEPARATOR + processPackage.replace(".", SEPARATOR) + "/messages";
+		for (final String processPackage : properties) {
+			final String providerId = bundle.getBundleId() + SEPARATOR + processPackage.replace(".", SEPARATOR) + "/messages";
 			if (eventType == Bundle.ACTIVE) {
-				try {
-					String basePath = SEPARATOR + processPackage.replace(".", SEPARATOR) + SEPARATOR;
-					toolRegistry.deployOrUpdateProcessDefinition(
-							bundleHelper.getBundleResourceStream(basePath + "processdefinition." +
-									toolRegistry.getBpmDefinitionLanguage() + ".xml"),
-							bundleHelper.getBundleResourceStream(basePath + "processtool-config.xml"),
-							bundleHelper.getBundleResourceStream(basePath + "queues-config.xml"),
-							bundleHelper.getBundleResourceStream(basePath + "processdefinition.png"),
-							bundleHelper.getBundleResourceStream(basePath + "processdefinition-logo.png"));
-
-					toolRegistry.registerI18NProvider(new PropertiesBasedI18NProvider(new PropertyLoader() {
+					final String basePath = SEPARATOR + processPackage.replace(".", SEPARATOR) + SEPARATOR;
+									
+					toolRegistry.withExistingOrNewContext(new ProcessToolContextCallback() {
+						
 						@Override
-						public InputStream loadProperty(String path) throws IOException {
-							return getBundleResourceStream(bundle, path);
+						public void withContext(ProcessToolContext ctx) 
+						{
+							try {
+								
+								/* Initialize process deployer */
+								ProcessDeployer processDeployer = new ProcessDeployer(ctx);
+								
+								ProcessDefinitionConfig newConfig = 
+										processDeployer.unmarshallProcessDefinition(bundleHelper.getBundleResourceStream(basePath + "processtool-config.xml"));
+								
+								ProcessDefinitionDAO dao = ctx.getProcessDefinitionDAO();
+								ProcessDefinitionConfig oldConfig = dao.getActiveConfigurationByKey(newConfig.getBpmDefinitionKey());
+								
+								processDeployer.deployOrUpdateProcessDefinition(
+										bundleHelper.getBundleResourceStream(basePath + "processdefinition." +
+												toolRegistry.getBpmDefinitionLanguage() + ".xml"),
+												bundleHelper.getBundleResourceStream(basePath + "processtool-config.xml"),
+										bundleHelper.getBundleResourceStream(basePath + "queues-config.xml"),
+										bundleHelper.getBundleResourceStream(basePath + "processdefinition.png"),
+										bundleHelper.getBundleResourceStream(basePath + "processdefinition-logo.png"));
+								
+								toolRegistry.registerI18NProvider(new PropertiesBasedI18NProvider(new PropertyLoader() {
+									@Override
+									public InputStream loadProperty(String path) throws IOException {
+										return getBundleResourceStream(bundle, path);
+									}
+								}, "/" + processPackage.replace(".", SEPARATOR) + "/messages"), providerId);
+
+								
+								/* Get current definition */
+								newConfig = dao.getActiveConfigurationByKey(newConfig.getBpmDefinitionKey());
+
+								toolRegistry.registerProcessDictionaries(bundleHelper.getBundleResourceStream(basePath + "process-dictionaries.xml"),
+										newConfig, oldConfig);
+							}
+							catch (Exception e) {
+								logger.log(Level.SEVERE, e.getMessage(), e);
+								forwardErrorInfoToMonitor(bundle.getSymbolicName(), e);
+							}
+							
 						}
-					}, "/" + processPackage.replace(".", SEPARATOR) + "/messages"), providerId);
-
-					toolRegistry.registerProcessDictionaries(bundleHelper.getBundleResourceStream(basePath + "process-dictionaries.xml"));
-
-				}
-				catch (Exception e) {
-					logger.log(Level.SEVERE, e.getMessage(), e);
-					forwardErrorInfoToMonitor(bundle.getSymbolicName(), e);
-				}
+					});
 			}
 			else { // ignore
 				toolRegistry.unregisterI18NProvider(providerId);
@@ -290,11 +324,17 @@ public class BundleInstallationHandler {
 			for (ProcessRoleConfig role : roles) {
 				try
 				{
-					boolean roleCreated = LiferayBridge.createRoleIfNotExists(role.getName(), role.getDescription());
-					if (roleCreated)
+					IUserRolesManager userRolesManager = ObjectFactory.create(IUserRolesManager.class);
+					
+					/* Check if role exist. If not, create it */
+					if(!userRolesManager.isRoleExist(role.getName()))
+					{
+						userRolesManager.createRole(role.getName(), role.getDescription());
 						logger.log(Level.INFO, "Created role " + role.getName());
+					}
 
-				} catch (RuntimeException e) {
+				} 
+				catch (RuntimeException e) {
 					forwardErrorInfoToMonitor("adding role " + role.getName(), e);
 					throw e;
 
