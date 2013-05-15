@@ -34,7 +34,7 @@ public abstract class BaseProcessToolActionButton implements ProcessToolActionBu
 	protected String bpmAction;
 
 	@AutoWiredProperty
-	protected Boolean markProcessImportant = false;
+	protected String markProcessImportant;
 
 	@AutoWiredProperty
 	protected String styleName;
@@ -46,7 +46,7 @@ public abstract class BaseProcessToolActionButton implements ProcessToolActionBu
 	protected String actionType = ProcessStateAction.PRIMARY_ACTION;
 
     @AutoWiredProperty
-    protected Integer priority = 1;
+    protected Integer priority = 0;
 
     protected Application application;
 	protected I18NSource messageSource;
@@ -182,11 +182,11 @@ public abstract class BaseProcessToolActionButton implements ProcessToolActionBu
         this.bpmAction = bpmAction;
     }
 
-    public boolean getMarkProcessImportant() {
+    public String getMarkProcessImportant() {
         return markProcessImportant;
     }
 
-    public void setMarkProcessImportant(boolean markProcessImportant) {
+    public void setMarkProcessImportant(String markProcessImportant) {
         this.markProcessImportant = markProcessImportant;
     }
 

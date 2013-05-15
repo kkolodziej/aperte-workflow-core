@@ -1,20 +1,38 @@
 package pl.net.bluesoft.rnd.processtool.plugins.osgi.newfelix;
 
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileOutputStream;
+import java.io.IOException;
+import java.io.InputStream;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.HashMap;
+import java.util.Hashtable;
+import java.util.List;
+import java.util.Map;
+import java.util.logging.Level;
+import java.util.logging.Logger;
+
 import org.apache.felix.framework.Felix;
 import org.apache.felix.framework.util.FelixConstants;
-import org.aperteworkflow.ui.view.ViewRegistry;
+import org.aperteworkflow.ui.view.IViewRegistry;
 import org.aperteworkflow.ui.view.impl.DefaultViewRegistryImpl;
-import org.osgi.framework.*;
-import pl.net.bluesoft.rnd.processtool.plugins.*;
+import org.osgi.framework.Bundle;
+import org.osgi.framework.BundleActivator;
+import org.osgi.framework.BundleContext;
+import org.osgi.framework.BundleException;
+import org.osgi.framework.ServiceReference;
+
+import pl.net.bluesoft.rnd.processtool.plugins.PluginManagementException;
+import pl.net.bluesoft.rnd.processtool.plugins.PluginMetadata;
+import pl.net.bluesoft.rnd.processtool.plugins.ProcessToolRegistry;
+import pl.net.bluesoft.rnd.processtool.plugins.ProcessToolRegistryImpl;
+import pl.net.bluesoft.rnd.processtool.plugins.ProcessToolServiceBridge;
 import pl.net.bluesoft.rnd.processtool.plugins.osgi.BundleInstallationHandler;
 import pl.net.bluesoft.rnd.processtool.plugins.osgi.ErrorMonitor;
 import pl.net.bluesoft.rnd.processtool.plugins.osgi.FelixBundleService;
 import pl.net.bluesoft.rnd.processtool.plugins.osgi.FelixServiceBridge;
-
-import java.io.*;
-import java.util.*;
-import java.util.logging.Level;
-import java.util.logging.Logger;
 
 /**
  * User: POlszewski
@@ -135,7 +153,7 @@ public class NewFelixBundleService implements FelixBundleService {
 
 			private void registerDefaultServices(BundleContext context) {
 				context.registerService(ProcessToolRegistry.class.getName(), registry, new Hashtable<String, Object>());
-				context.registerService(ViewRegistry.class.getName(), new DefaultViewRegistryImpl(), new Hashtable<String, Object>());
+				context.registerService(IViewRegistry.class.getName(), new DefaultViewRegistryImpl(), new Hashtable<String, Object>());
 			}
 		});
 

@@ -72,10 +72,22 @@ public class UserDataDAOImpl extends SimpleHibernateBean<UserData> implements Us
           DetachedCriteria criteria = getDetachedCriteria().setResultTransformer(Criteria.DISTINCT_ROOT_ENTITY);
            UserData findUnique = findUnique(criteria, eq("login", login));
            long duration = System.currentTimeMillis() - start;
-			logger.severe("loadUserByLogin: " +  duration);
+			logger.finest("loadUserByLogin: " +  duration);
 			
 			return findUnique;
       }
+      
+  	@Override
+  	public UserData loadUserByEmail(String email) 
+  	{
+  	  long start = System.currentTimeMillis();
+      DetachedCriteria criteria = getDetachedCriteria().setResultTransformer(Criteria.DISTINCT_ROOT_ENTITY);
+       UserData findUnique = findUnique(criteria, eq("email", email));
+       long duration = System.currentTimeMillis() - start;
+		logger.finest("loadUserByLogin: " +  duration);
+		
+		return findUnique;
+  	}
 
       @Override
       public void saveOrUpdate(UserData object) {
@@ -97,4 +109,6 @@ public class UserDataDAOImpl extends SimpleHibernateBean<UserData> implements Us
               }
           }};
       }
+
+
 }

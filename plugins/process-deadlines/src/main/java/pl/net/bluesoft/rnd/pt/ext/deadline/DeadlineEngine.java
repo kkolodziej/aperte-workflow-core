@@ -1,26 +1,50 @@
 package pl.net.bluesoft.rnd.pt.ext.deadline;
 
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Date;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+import java.util.Properties;
+import java.util.Set;
+import java.util.logging.Level;
+import java.util.logging.Logger;
+
 import org.apache.commons.lang3.time.DateUtils;
-import org.aperteworkflow.util.liferay.LiferayBridge;
 import org.hibernate.Criteria;
 import org.hibernate.Session;
 import org.hibernate.criterion.DetachedCriteria;
 import org.hibernate.criterion.Projections;
 import org.hibernate.criterion.Restrictions;
 import org.hibernate.criterion.Subqueries;
-import org.quartz.*;
+import org.quartz.JobBuilder;
+import org.quartz.JobDataMap;
+import org.quartz.JobDetail;
+import org.quartz.SchedulerException;
+import org.quartz.Trigger;
+import org.quartz.TriggerBuilder;
+
 import pl.net.bluesoft.rnd.processtool.ProcessToolContext;
 import pl.net.bluesoft.rnd.processtool.ProcessToolContextCallback;
 import pl.net.bluesoft.rnd.processtool.bpm.ProcessToolBpmSession;
 import pl.net.bluesoft.rnd.processtool.bpm.exception.ProcessToolException;
+import pl.net.bluesoft.rnd.processtool.di.ObjectFactory;
 import pl.net.bluesoft.rnd.processtool.model.BpmTask;
 import pl.net.bluesoft.rnd.processtool.model.ProcessInstance;
 import pl.net.bluesoft.rnd.processtool.model.UserData;
 import pl.net.bluesoft.rnd.processtool.model.config.ProcessStateConfiguration;
 import pl.net.bluesoft.rnd.processtool.model.processdata.ProcessDeadline;
 import pl.net.bluesoft.rnd.processtool.plugins.ProcessToolRegistry;
-import pl.net.bluesoft.rnd.pt.ext.bpmnotifications.service.BpmNotificationService;
-import pl.net.bluesoft.rnd.pt.ext.bpmnotifications.util.EmailSender;
+import pl.net.bluesoft.rnd.processtool.roles.IUserRolesManager;
+import pl.net.bluesoft.rnd.processtool.usersource.IUserSource;
+import pl.net.bluesoft.rnd.pt.ext.bpmnotifications.service.EmailSender;
+import pl.net.bluesoft.rnd.pt.ext.bpmnotifications.service.IBpmNotificationService;
+import pl.net.bluesoft.rnd.pt.ext.bpmnotifications.service.ITemplateDataProvider;
+import pl.net.bluesoft.rnd.pt.ext.bpmnotifications.service.NotificationData;
+import pl.net.bluesoft.rnd.pt.ext.bpmnotifications.service.TemplateData;
+import pl.net.bluesoft.rnd.pt.ext.bpmnotifications.service.TemplateDataProvider;
 import pl.net.bluesoft.rnd.pt.ext.sched.service.ProcessToolSchedulerService;
 import pl.net.bluesoft.rnd.util.i18n.I18NSource;
 import pl.net.bluesoft.rnd.util.i18n.I18NSourceFactory;
@@ -29,13 +53,8 @@ import pl.net.bluesoft.util.lang.Predicate;
 import pl.net.bluesoft.util.lang.Strings;
 import pl.net.bluesoft.util.lang.Transformer;
 
-import java.util.*;
-import java.util.logging.Level;
-import java.util.logging.Logger;
-
 public class DeadlineEngine {
     private static final Logger logger = Logger.getLogger(DeadlineEngine.class.getName());
-    private static final String DEFAULT_PROFILE_NAME = "DefaultDeadLineProfile";
 
     private ProcessToolRegistry registry;
 
@@ -52,28 +71,23 @@ public class DeadlineEngine {
             public void run() {
                 registry.withProcessToolContext(new ProcessToolContextCallback() {
                     @Override
-                    public void withContext(ProcessToolContext ctx) {
-                        ProcessToolContext.Util.setThreadProcessToolContext(ctx);
-                        try {
-                            ProcessToolBpmSession bpmSession = ctx.getProcessToolSessionFactory().createAutoSession();
-                            Session session = ctx.getHibernateSession();
-                            List<ProcessInstance> instances = loadProcessesWithDeadlines(session);
-                            for (ProcessInstance pi : instances) {
-                                if (bpmSession.isProcessRunning(pi.getInternalId(), ctx)) {
-                                    Set<ProcessDeadline> deadlines = pi.findAttributesByClass(ProcessDeadline.class);
-                                    Collection<BpmTask> tasks = bpmSession.findProcessTasks(pi, ctx);
-                                    for (ProcessDeadline pd : deadlines) {
-                                        for (BpmTask task : tasks) {
-                                            if (task.getTaskName().equals(pd.getTaskName()) && task.getAssignee() != null) {
-                                                scheduleDeadline(pi.getInternalId(), pd);
-                                            }
+                    public void withContext(ProcessToolContext ctx) 
+                    {
+                        ProcessToolBpmSession bpmSession = ctx.getProcessToolSessionFactory().createAutoSession();
+                        Session session = ctx.getHibernateSession();
+                        List<ProcessInstance> instances = loadProcessesWithDeadlines(session);
+                        for (ProcessInstance pi : instances) {
+                            if (bpmSession.isProcessRunning(pi.getInternalId(), ctx)) {
+                                Set<ProcessDeadline> deadlines = pi.findAttributesByClass(ProcessDeadline.class);
+                                Collection<BpmTask> tasks = bpmSession.findProcessTasks(pi, ctx);
+                                for (ProcessDeadline pd : deadlines) {
+                                    for (BpmTask task : tasks) {
+                                        if (task.getTaskName().equals(pd.getTaskName()) && task.getAssignee() != null) {
+                                            scheduleDeadline(pi.getInternalId(), pd);
                                         }
                                     }
                                 }
                             }
-                        }
-                        finally {
-                            ProcessToolContext.Util.removeThreadProcessToolContext();
                         }
                     }
                 });
@@ -173,29 +187,28 @@ public class DeadlineEngine {
         }
     }
 
-    public void handleDeadlineJob(final String processInstanceId, final ProcessDeadline processDeadline) {
+    public void handleDeadlineJob(final String processInstanceId, final ProcessDeadline processDeadline) 
+    {
         registry.withProcessToolContext(new ProcessToolContextCallback() {
             @Override
             public void withContext(ProcessToolContext ctx) {
-                ProcessToolContext.Util.setThreadProcessToolContext(ctx);
                 try {
                     signalDeadline(ctx, processInstanceId, processDeadline);
                 }
                 catch (Exception e) {
                     logger.log(Level.SEVERE, "Exception while sending deadline notification", e);
                 }
-                finally {
-                    ProcessToolContext.Util.removeThreadProcessToolContext();
-                }
             }
         });
     }
 
     private void signalDeadline(ProcessToolContext ctx, String processInstanceId, ProcessDeadline processDeadline) throws Exception {
-        
-    	ProcessInstance pi = ctx.getProcessInstanceDAO().getProcessInstanceByInternalId(processInstanceId);
+        ProcessInstance pi = ctx.getProcessInstanceDAO().getProcessInstanceByInternalId(processInstanceId);
         ProcessToolBpmSession bpmSession = ctx.getProcessToolSessionFactory().createAutoSession();
         List<BpmTask> tasks = bpmSession.findProcessTasks(pi, ctx);
+        
+    	ITemplateDataProvider templateDataProvider = new TemplateDataProvider();
+        
         for (BpmTask task : tasks) {
             if (task.getTaskName().equals(processDeadline.getTaskName())) {
                 String assigneeLogin = task.getAssignee();
@@ -211,22 +224,24 @@ public class DeadlineEngine {
                         logger.info("Skipping deadline signal for assignee: " + assigneeLogin);
                         continue;
                     }
-                    Map dataModel = new HashMap();
-                    dataModel.put("process", pi);
-                    dataModel.put("taskName", taskName);
-                    dataModel.put("processVisibleId", Strings.hasText(pi.getExternalKey()) ? pi.getExternalKey() : pi.getInternalId());
-                    dataModel.put("notifiedUser", user);
-                    dataModel.put("assignedUser", notifyUsers.get(assigneeLogin));
+                    TemplateData templateData = templateDataProvider.createTemplateData(processDeadline.getTemplateName(), Locale.getDefault());
+                    templateDataProvider
+                    	.addProcessData(templateData, pi)
+                    	.addTaskData(templateData, task)
+                    	.addUserToNotifyData(templateData, user);
+                    
+                    templateData.addEntry("notifiedUser", user);
+                    templateData.addEntry("assignedUser", notifyUsers.get(assigneeLogin));
+                    
+                    NotificationData notificationData = new NotificationData();
+                    notificationData
+                    	.setProfileName("Default")
+                    	.setRecipient(user)
+                    	.setTemplateData(templateData);
 
 					logger.info("Signaling deadline for task: " + task.getTaskName() + " owned by: " + assigneeLogin + ", mailed to: " + user.getLogin());
-					
-					if(processDeadline.getProfileName()==null){
-						EmailSender.sendEmail(DEFAULT_PROFILE_NAME, getBpmNotifications(), user.getEmail(), processDeadline.getTemplateName(), dataModel);	
-					}
-					else{
-						EmailSender.sendEmail(processDeadline.getProfileName(), getBpmNotifications(), user.getEmail(), processDeadline.getTemplateName(), dataModel);
-					}
-					
+
+					EmailSender.sendEmail(getBpmNotifications(), notificationData);
                 }
                 processDeadline.setAlreadyNotified(true);
                 ctx.getHibernateSession().saveOrUpdate(processDeadline);
@@ -234,8 +249,8 @@ public class DeadlineEngine {
         }
     }
 
-	private BpmNotificationService getBpmNotifications() {
-		return registry.getRegisteredService(BpmNotificationService.class);
+	private IBpmNotificationService getBpmNotifications() {
+		return registry.getRegisteredService(IBpmNotificationService.class);
 	}
 
 	private I18NSource getI18NSource() {
@@ -261,8 +276,11 @@ public class DeadlineEngine {
         }
         if (Strings.hasText(processDeadline.getNotifyUsersWithRole())) {
             for (String role : processDeadline.getNotifyUsersWithRole().split(",")) {
-                if (Strings.hasText(role)) {
-                    for (UserData userWithRole : LiferayBridge.getUsersByRole(role)) {
+                if (Strings.hasText(role)) 
+                {
+                	IUserRolesManager rolesManager = ObjectFactory.create(IUserRolesManager.class);
+                	
+                    for (UserData userWithRole : rolesManager.getUsersByRole(role)) {
                         notifyUsers.put(userWithRole.getLogin(), userWithRole);
                     }
                 }
@@ -274,8 +292,11 @@ public class DeadlineEngine {
     private Map<String, UserData> loadUsersAsMap(ProcessToolContext ctx, List<String> userLogins) {
         Map<String, UserData> users = ctx.getUserDataDAO().loadUsersByLogin(userLogins);
         for (String login : userLogins) {
-            if (users.get(login) == null) {
-                UserData user = LiferayBridge.getLiferayUser(login);
+            if (users.get(login) == null) 
+            {
+            	IUserSource userSource = ObjectFactory.create(IUserSource.class);
+                UserData user = userSource.getUserByLogin(login);
+                
                 if (user == null) {
                     logger.warning("Unable to find user by login: " + login);
                 }

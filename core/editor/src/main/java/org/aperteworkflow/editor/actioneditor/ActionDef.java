@@ -7,7 +7,6 @@ public class ActionDef {
 	private String buttonType;
 
 	private Map<String, Object> items = new HashMap<String, Object>();
-	private Map<String, Object> attributes = new HashMap<String, Object>();
 
 	public String getButtonType() {
 		return buttonType;
@@ -29,15 +28,4 @@ public class ActionDef {
 		items.put(key, value);
 	}
 
-	public Map<String, Object> getAttributes() {
-		return attributes;
-	}
-
-	public void setAttributes(Map<String, Object> attributes) {
-		this.attributes = attributes;
-	}
-
-	public void setAttribute(String name, Object value) {
-		attributes.put(name,  value);
-	}
 }

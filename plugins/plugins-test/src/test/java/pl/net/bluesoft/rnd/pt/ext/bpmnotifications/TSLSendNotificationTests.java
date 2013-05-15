@@ -25,7 +25,7 @@ import org.hibernate.exception.GenericJDBCException;
 
 import pl.net.bluesoft.rnd.pt.ext.bpmnotifications.facade.NotificationsFacade;
 import pl.net.bluesoft.rnd.pt.ext.bpmnotifications.model.BpmNotification;
-import pl.net.bluesoft.rnd.pt.ext.bpmnotifications.service.BpmNotificationService;
+import pl.net.bluesoft.rnd.pt.ext.bpmnotifications.service.IBpmNotificationService;
 import pl.net.bluesoft.rnd.pt.ext.testabstract.AperteDataSourceTestCase;
 import pl.net.bluesoft.util.lang.Strings;
 
@@ -41,19 +41,19 @@ public class TSLSendNotificationTests extends AperteDataSourceTestCase
 			public void test() 
 			{
 				final BpmNotificationEngine engine = new BpmNotificationEngine(registry);
-				registry.registerService(BpmNotificationService.class, engine, new Properties());
+				registry.registerService(IBpmNotificationService.class, engine, new Properties());
 				
-				try 
-				{
-					
-					engine.addNotificationToSend("Default", "axa-mail@bluesoft.net.pl", "inz.pawlak@gmail.com", "test", "test", true);					
-					engine.addNotificationToSend("Default", "axa-mail@bluesoft.net.pl", "inz.pawlak@gmail.com", "test2", "test2", true);
-				} 
-				catch (Exception e1) 
-				{
-					fail(e1.getMessage());
-
-				}
+//				try 
+//				{
+//					
+//					engine.addNotificationToSend("Default", "axa-mail@bluesoft.net.pl", "inz.pawlak@gmail.com", "test", "test", true);					
+//					engine.addNotificationToSend("Default", "axa-mail@bluesoft.net.pl", "inz.pawlak@gmail.com", "test2", "test2", true);
+//				} 
+//				catch (Exception e1) 
+//				{
+//					fail(e1.getMessage());
+//
+//				}
 				//ProcessToolContext.Util.getThreadProcessToolContext().getHibernateSession().buildLockRequest(LockOptions.UPGRADE);
 //				
 //				org.hibernate.Session session = registry.getSessionFactory().openSession();

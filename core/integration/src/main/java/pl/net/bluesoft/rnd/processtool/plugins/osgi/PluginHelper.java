@@ -4,12 +4,18 @@ import org.apache.lucene.document.Document;
 import org.apache.lucene.search.Query;
 import org.aperteworkflow.search.ProcessInstanceSearchData;
 import org.aperteworkflow.search.SearchProvider;
+import org.aperteworkflow.util.ProcessToolContextThread;
 import org.osgi.framework.BundleException;
+
+import pl.net.bluesoft.rnd.processtool.ProcessToolContext;
+import pl.net.bluesoft.rnd.processtool.ProcessToolContextCallback;
 import pl.net.bluesoft.rnd.processtool.plugins.PluginManager;
 import pl.net.bluesoft.rnd.processtool.plugins.PluginMetadata;
+import pl.net.bluesoft.rnd.processtool.plugins.ProcessToolRegistry;
 import pl.net.bluesoft.rnd.processtool.plugins.ProcessToolRegistryImpl;
 import pl.net.bluesoft.rnd.processtool.plugins.osgi.newfelix.NewFelixBundleService;
 import pl.net.bluesoft.rnd.processtool.plugins.osgi.oldfelix.OldFelixBundleService;
+import pl.net.bluesoft.rnd.util.i18n.I18NSource;
 
 import java.io.File;
 import java.io.InputStream;
@@ -17,6 +23,7 @@ import java.util.Collection;
 import java.util.List;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.TimeUnit;
 import java.util.logging.Level;
 import java.util.logging.Logger;
@@ -83,13 +90,16 @@ public class PluginHelper implements PluginManager, SearchProvider {
 		}
 	}
 
-	private Runnable createBundleInstallTask() {
-        return new Runnable() {
-            @Override
-            public void run() {
-                scheduledBundleInstall();
-            }
-        };
+	private Runnable createBundleInstallTask() 
+	{
+		return new Runnable() {
+			
+			@Override
+			public void run() {
+				scheduledBundleInstall();
+				
+			}
+		};
     }
 
 	private synchronized void scheduledBundleInstall() {

@@ -8,17 +8,6 @@
 		<param-value>false</param-value>
 	</context-param>
 
-	<security-constraint>
-		<display-name>excluded</display-name>
-		<web-resource-collection>
-			<web-resource-name>Web Service API</web-resource-name>
-			<url-pattern>/services/*</url-pattern>
-		</web-resource-collection>
-		<auth-constraint>
-			<role-name>AWF_API</role-name>
-		</auth-constraint>
-	</security-constraint>
-
 	<login-config>
 		<auth-method>BASIC</auth-method>
 		<realm-name>default</realm-name>
@@ -373,6 +362,32 @@
 		</init-param>
 		<load-on-startup>0</load-on-startup>
 	</servlet>
+	
+	 <servlet>
+		<servlet-name>VaadinApplicationServlet</servlet-name>
+		<servlet-class>
+			pl.net.bluesoft.rnd.processtool.application.activity.ResponsiveUIApplicationServlet
+		</servlet-class>
+		<init-param>
+		  <param-name>application</param-name>
+		  <param-value>pl.net.bluesoft.rnd.processtool.application.activity.ActivityStandAloneApplication</param-value>
+		</init-param>
+		<init-param>
+            <description>Application widgetset</description>
+            <param-name>widgetset</param-name>
+            <param-value>pl.net.bluesoft.rnd.widgetset.PortalDefaultWidgetSet</param-value>
+        </init-param>
+		<load-on-startup>1</load-on-startup>
+	  </servlet>
+
+	  <servlet-mapping>
+		<servlet-name>VaadinApplicationServlet</servlet-name>
+		<url-pattern>/standalone/*</url-pattern>
+	 </servlet-mapping>
+	 <servlet-mapping>
+        <servlet-name>VaadinApplicationServlet</servlet-name>
+        <url-pattern>/VAADIN/*</url-pattern>
+    </servlet-mapping>
 
 	<servlet>
 		<servlet-name>GenerateTokenServlet</servlet-name>
@@ -396,6 +411,12 @@
 		<servlet-class>pl.net.bluesoft.rnd.processtool.plugins.StepExposureServlet
 		</servlet-class>
 		<load-on-startup>2</load-on-startup>
+	</servlet>
+	<servlet>
+		<servlet-name>OSGIPerformActionServlet</servlet-name>
+		<servlet-class>pl.net.bluesoft.rnd.processtool.plugins.PerformActionServlet
+		</servlet-class>
+		<load-on-startup>5</load-on-startup>
 	</servlet>
 	<servlet>
 		<servlet-name>OSGIUserProcessQueuesServlet</servlet-name>
@@ -528,6 +549,11 @@
 		<servlet-name>AperteWorkflowConfigurationExposureServlet
 		</servlet-name>
 		<url-pattern>/osgiex/configuration</url-pattern>
+	</servlet-mapping>
+	
+	<servlet-mapping>
+		<servlet-name>OSGIPerformActionServlet</servlet-name>
+		<url-pattern>/osgiex/token_access</url-pattern>
 	</servlet-mapping>
 
 

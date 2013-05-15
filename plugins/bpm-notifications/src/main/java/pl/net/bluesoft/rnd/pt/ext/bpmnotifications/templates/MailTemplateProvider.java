@@ -4,7 +4,6 @@ import java.io.IOException;
 import java.io.Reader;
 import java.io.StringReader;
 import java.io.StringWriter;
-import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -12,12 +11,11 @@ import java.util.logging.Logger;
 
 import org.hibernate.Criteria;
 import org.hibernate.Session;
-import org.hibernate.criterion.Restrictions;
 
 import pl.net.bluesoft.rnd.processtool.ProcessToolContext;
 import pl.net.bluesoft.rnd.processtool.template.ProcessToolTemplateErrorException;
 import pl.net.bluesoft.rnd.pt.ext.bpmnotifications.model.BpmNotificationTemplate;
-import freemarker.cache.TemplateLoader;
+import pl.net.bluesoft.rnd.pt.ext.bpmnotifications.service.TemplateData;
 import freemarker.template.Configuration;
 import freemarker.template.Template;
 
@@ -27,7 +25,7 @@ import freemarker.template.Template;
  * @author mpawlak
  *
  */
-public class MailTemplateProvider implements TemplateLoader
+public class MailTemplateProvider implements IMailTemplateLoader
 {
     private static final String SUBJECT_TEMPLATE_SUFFIX = "_subject";
     private static final String SENDER_TEMPLATE_SUFFIX = "_sender";
@@ -80,14 +78,14 @@ public class MailTemplateProvider implements TemplateLoader
 		return templateMap.get(templateName);
 	}
     
-	public String processTemplate(String templateName, Map data) 
+	public String processTemplate(String templateName, TemplateData templateData) throws ProcessToolTemplateErrorException
 	{
         logger.info("Using template " + templateName);
         StringWriter sw = new StringWriter();
         try 
         {
             Template template = freemarkerConfiguration.getTemplate(templateName);
-            template.process(data != null ? data : new HashMap(), sw);
+            template.process(templateData.getData() != null ? templateData.getData() : new HashMap(), sw);
         }
         catch (Exception e) {
             throw new ProcessToolTemplateErrorException(e);

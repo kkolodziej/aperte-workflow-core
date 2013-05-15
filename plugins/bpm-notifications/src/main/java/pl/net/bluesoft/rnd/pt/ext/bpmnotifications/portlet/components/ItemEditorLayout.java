@@ -5,7 +5,7 @@ import com.vaadin.data.util.BeanItemContainer;
 import com.vaadin.ui.*;
 import pl.net.bluesoft.rnd.processtool.model.PersistentEntity;
 import pl.net.bluesoft.rnd.processtool.plugins.ProcessToolRegistry;
-import pl.net.bluesoft.rnd.pt.ext.bpmnotifications.service.BpmNotificationService;
+import pl.net.bluesoft.rnd.pt.ext.bpmnotifications.service.IBpmNotificationService;
 import pl.net.bluesoft.rnd.util.i18n.I18NSource;
 import pl.net.bluesoft.util.lang.Lang;
 import pl.net.bluesoft.util.lang.cquery.func.F;
@@ -165,8 +165,8 @@ public abstract class ItemEditorLayout<ItemType extends PersistentEntity> extend
 		return i18NSource;
 	}
 
-	protected BpmNotificationService getService() {
-		return registry.getRegisteredService(BpmNotificationService.class);
+	protected IBpmNotificationService getService() {
+		return registry.getRegisteredService(IBpmNotificationService.class);
 	}
 
 	protected TextField textField(String caption, int width) {
@@ -179,24 +179,6 @@ public abstract class ItemEditorLayout<ItemType extends PersistentEntity> extend
 		}
 		return textField;
 	}
-	
-	protected PasswordField passwordField(String caption, int width) {
-		PasswordField passwordField = passwordField(caption);
-		if (width >= 0) {
-			passwordField.setWidth(width, UNITS_PIXELS);
-		}
-		else {
-			passwordField.setWidth(100, UNITS_PERCENTAGE);
-		}
-		return passwordField;
-	}
-	
-	protected PasswordField passwordField(String caption) {
-		PasswordField passwordField = new PasswordField(getMessage(caption));
-		passwordField.setNullRepresentation("");
-		return passwordField;
-	}
-	
 
 	protected TextField textField(String caption) {
 		TextField textField = new TextField(getMessage(caption));

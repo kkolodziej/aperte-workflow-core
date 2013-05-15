@@ -1,26 +1,39 @@
 package pl.net.bluesoft.rnd.processtool.model.config;
 
-import org.hibernate.annotations.GenericGenerator;
-import pl.net.bluesoft.rnd.processtool.model.AbstractPersistentEntity;
+import static pl.net.bluesoft.util.lang.FormatUtil.nvl;
 
-import javax.persistence.*;
-import javax.xml.bind.annotation.XmlTransient;
-import java.util.Arrays;
-import java.util.Collection;
 import java.util.HashSet;
 import java.util.Set;
 
-import static pl.net.bluesoft.util.lang.FormatUtil.nvl;
+import javax.persistence.CascadeType;
+import javax.persistence.Column;
+import javax.persistence.Entity;
+import javax.persistence.FetchType;
+import javax.persistence.GeneratedValue;
+import javax.persistence.Id;
+import javax.persistence.JoinColumn;
+import javax.persistence.ManyToOne;
+import javax.persistence.OneToMany;
+import javax.persistence.Table;
+import javax.xml.bind.annotation.XmlTransient;
+
+import org.hibernate.annotations.GenericGenerator;
+
+import pl.net.bluesoft.rnd.processtool.model.AbstractPersistentEntity;
 
 /**
  * @author tlipski@bluesoft.net.pl
  */
 @Entity
 @Table(name = "pt_process_state_action")
-public class ProcessStateAction extends AbstractPersistentEntity {
-    final static public String PRIMARY_ACTION = "primary";
-    final static public String SECONDARY_ACTION = "secondary";
+public class ProcessStateAction extends AbstractPersistentEntity 
+{
 
+	private static final long serialVersionUID = -4289562842524059438L;
+	
+	final static public String PRIMARY_ACTION = "primary";
+    final static public String SECONDARY_ACTION = "secondary";
+    
 	@Id
 	@GeneratedValue(generator = "idGenerator")
 	@GenericGenerator(
@@ -35,7 +48,6 @@ public class ProcessStateAction extends AbstractPersistentEntity {
 	@Column(name = "id")
 	protected Long id;
 
-//    @XmlTransient
     @ManyToOne
     @JoinColumn(name = "state_id")
     private ProcessStateConfiguration config;
@@ -48,43 +60,29 @@ public class ProcessStateAction extends AbstractPersistentEntity {
     private String url;
     private String title;
     private String question;
-    
     private String notification;
 
-    @OneToMany(cascade = CascadeType.ALL)
+    @OneToMany(cascade = CascadeType.ALL, fetch=FetchType.EAGER)
     @JoinColumn(name = "action_id")
-    private Set<ProcessStateActionPermission> permissions = new HashSet();
+    private Set<ProcessStateActionPermission> permissions = new HashSet<ProcessStateActionPermission>();
 
-    @OneToMany(cascade = CascadeType.ALL)
+    @OneToMany(cascade = CascadeType.ALL, fetch=FetchType.EAGER)
     @JoinColumn(name = "action_id")
-    private Set<ProcessStateActionAttribute> attributes = new HashSet();
+    private Set<ProcessStateActionAttribute> attributes = new HashSet<ProcessStateActionAttribute>();
 
     private String assignProcessStatus;
 
     private Boolean markProcessImportant = false;
 
     private Boolean skipSaving = false;
+    
+    /** Should action be hidden for external access (e-mail shourtcuts)? */
+    private Boolean hideForExternalAccess = false;
 
     private Boolean autohide = false;
 
     private Integer priority;
-
-	public static Collection<String> getAutowiredPropertyNames() {
-		return Arrays.asList(
-			"autoHide",
-			"description",
-			"label",
-			"actionType",
-			"skipSaving",
-			"markProcessImportant",
-			"priority",
-			"url",
-			"title",
-			"question",
-			"notification"
-		);		
-	}
-
+    
 	public Long getId() {
 		return id;
 	}
@@ -93,7 +91,7 @@ public class ProcessStateAction extends AbstractPersistentEntity {
 		this.id = id;
 	}
 
-	public String getAssignProcessStatus() {
+    public String getAssignProcessStatus() {
         return assignProcessStatus;
     }
 
@@ -114,7 +112,6 @@ public class ProcessStateAction extends AbstractPersistentEntity {
         return config;
     }
 
-//    @XmlTransient
     public void setConfig(ProcessStateConfiguration config) {
         this.config = config;
     }
@@ -136,7 +133,9 @@ public class ProcessStateAction extends AbstractPersistentEntity {
     }
 
     public Set<ProcessStateActionPermission> getPermissions() {
-        if (permissions == null) permissions = new HashSet<ProcessStateActionPermission>();
+        if (permissions == null) 
+        	permissions = new HashSet<ProcessStateActionPermission>();
+        
         return permissions;
     }
 
@@ -168,8 +167,11 @@ public class ProcessStateAction extends AbstractPersistentEntity {
         this.autohide = autohide;
     }
 
-    public Set<ProcessStateActionAttribute> getAttributes() {
-        if (attributes == null) attributes = new HashSet<ProcessStateActionAttribute>();
+    public Set<ProcessStateActionAttribute> getAttributes() 
+    {
+        if (attributes == null) 
+        	attributes = new HashSet<ProcessStateActionAttribute>();
+        
         return attributes;
     }
 
@@ -224,7 +226,6 @@ public class ProcessStateAction extends AbstractPersistentEntity {
 	public void setQuestion(String question) {
 		this.question = question;
 	}
-	
 
 	public String getNotification() {
 		return notification;
@@ -232,5 +233,13 @@ public class ProcessStateAction extends AbstractPersistentEntity {
 
 	public void setNotification(String notification) {
 		this.notification = notification;
+	}
+	
+	public Boolean getHideForExternalAccess() {
+		return hideForExternalAccess == null ? false : hideForExternalAccess;
+	}
+
+	public void setHideForExternalAccess(Boolean hideForExternalAccess) {
+		this.hideForExternalAccess = hideForExternalAccess;
 	}
 }

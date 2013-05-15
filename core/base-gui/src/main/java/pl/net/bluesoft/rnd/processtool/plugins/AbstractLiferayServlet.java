@@ -23,6 +23,7 @@ import com.liferay.portal.kernel.util.KeyValuePair;
 import com.liferay.portal.model.Role;
 import com.liferay.portal.model.User;
 import com.liferay.portal.service.UserLocalServiceUtil;
+import com.vaadin.ui.TextArea;
 
 /**
  * Abstract servlet with integration with Liferay. It uses liferay authentication
